@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Control de Inventario y Punto de Venta</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+</head>
+<body class="bg-gray-100 p-6 font-sans">
+
+    <div class="max-w-7xl mx-auto bg-white p-6 rounded-lg shadow-lg">
+        <!-- Barra superior -->
+        <div class="flex justify-between items-center mb-6">
+            <button id="toggleInventory" class="flex items-center bg-blue-500 text-white px-4 py-2 rounded-xl text-lg hover:bg-blue-600 transition">
+                <span class="material-icons mr-2">inventory</span> Inventario
+            </button>
+            <button id="toggleSales" class="flex items-center bg-green-500 text-white px-4 py-2 rounded-xl text-lg hover:bg-green-600 transition">
+                <span class="material-icons mr-2">shopping_cart</span> Punto de Venta
+            </button>
+            <button id="toggleCorte" class="flex items-center bg-yellow-500 text-white px-4 py-2 rounded-xl text-lg hover:bg-yellow-600 transition">
+                <span class="material-icons mr-2">receipt_long</span> Corte
+            </button>
+        </div>
+
+        <!-- Panel Inventario -->
+        <div id="inventoryPanel" class="mt-6 p-6 bg-gray-50 rounded-lg shadow-md hidden">
+            <h3 class="text-2xl font-semibold mb-4">Inventario</h3>
+            <form id="inventoryForm" class="space-y-4 mb-6">
+                <input type="text" id="itemName" placeholder="Nombre del artículo" class="w-full p-4 border-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <input type="number" id="itemQuantity" placeholder="Cantidad" class="w-full p-4 border-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <input type="number" id="itemCost" placeholder="Costo" class="w-full p-4 border-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <input type="number" id="itemPrice" placeholder="Precio de Venta" class="w-full p-4 border-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <button type="button" id="addInventoryItem" class="w-full bg-blue-500 text-white p-4 rounded-xl text-xl hover:bg-blue-600 transition">Agregar al Inventario</button>
+            </form>
+            
+            <table class="w-full border-collapse mb-6">
+                <thead>
+                    <tr class="bg-blue-100">
+                        <th class="p-4 text-left text-sm font-medium text-gray-700">Producto</th>
+                        <th class="p-4 text-left text-sm font-medium text-gray-700">Cantidad</th>
+                        <th class="p-4 text-left text-sm font-medium text-gray-700">Costo</th>
+                        <th class="p-4 text-left text-sm font-medium text-gray-700">Precio</th>
+                    </tr>
+                </thead>
+                <tbody id="inventoryBody"></tbody>
+            </table>
+
+            <div class="flex justify-between">
+                <div class="text-lg font-semibold">Costo Total: <span id="totalCost">$0.00</span></div>
+                <div class="text-lg font-semibold">Precio Total: <span id="totalPrice">$0.00</span></div>
+            </div>
+
+            <button id="downloadInventory" class="w-full bg-blue-500 text-white p-4 rounded-xl text-xl mt-4 hover:bg-blue-600 transition">Descargar Inventario</button>
+        </div>
+
+        <!-- Panel Punto de Venta -->
+        <div id="salesPanel" class="mt-6 p-6 bg-gray-50 rounded-lg shadow-md hidden">
+            <div class="text-center">
+                <button type="button" id="searchButton" class="w-full bg-green-500 text-white p-4 rounded-xl text-xl hover:bg-green-600 transition mb-6">
+                    <span class="material-icons mr-2">search</span> Buscar Artículos
+                </button>
+            </div>
+            
+            <!-- Panel de búsqueda de productos -->
+            <div id="searchPanel" class="hidden mt-6 p-4 bg-white rounded-lg shadow-md">
+                <input type="text" id="searchBox" placeholder="Buscar producto" class="w-full p-4 border-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 mb-4">
+                <ul id="searchResults" class="max-h-48 overflow-auto bg-white border-2 rounded-lg shadow-md"></ul>
+            </div>
+
+            <!-- Productos Seleccionados -->
+            <div class="bg-white p-6 rounded-lg shadow-md mt-6">
+                <h3 class="text-xl font-semibold mb-4">Productos Seleccionados</h3>
+                <ul id="saleItemsList" class="mb-4"></ul>
+                <div class="flex justify-between items-center text-lg font-semibold">
+                    <div>Total:</div>
+                    <div id="saleTotal">$0.00</div>
+                </div>
+                <button id="payButton" class="w-full bg-green-500 text-white p-4 rounded-xl text-xl mt-6 hover:bg-green-600 transition">
+                    <span class="material-icons align-middle">attach_money</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Panel Corte -->
+        <div id="cortePanel" class="mt-6 p-6 bg-gray-50 rounded-lg shadow-md hidden">
+            <h3 class="text-2xl font-semibold mb-4">Corte de Venta</h3>
+            
+            <!-- Tarjetas de Ventas -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div class="bg-blue-500 text-white p-6 rounded-xl shadow-lg text-center">
+                    <h4 class="text-xl font-semibold mb-2">Ventas Totales</h4>
+                    <p id="totalSales" class="text-3xl">$0.00</p>
+                </div>
+                <div class="bg-green-500 text-white p-6 rounded-xl shadow-lg text-center">
+                    <h4 class="text-xl font-semibold mb-2">Ventas en Efectivo</h4>
+                    <p id="cashSales" class="text-3xl">$0.00</p>
+                </div>
+                <div class="bg-yellow-500 text-white p-6 rounded-xl shadow-lg text-center">
+                    <h4 class="text-xl font-semibold mb-2">Ventas con Tarjeta</h4>
+                    <p id="cardSales" class="text-3xl">$0.00</p>
+                </div>
+            </div>
+
+            <h4 class="text-lg font-semibold mt-6">Resumen de Ventas</h4>
+            <div id="salesSummary"></div>
+            <div class="mt-4">
+                <h4 class="text-lg font-semibold">Método de Pago:</h4>
+                <div id="paymentSummary"></div>
+            </div>
+
+            <button id="downloadCorte" class="w-full bg-blue-500 text-white p-4 rounded-xl text-xl mt-4 hover:bg-blue-600 transition">Descargar Corte</button>
+        </div>
+    </div>
+
+    <script>
+        let inventory = [];
+        let saleItems = [];
+        let salesData = []; // Almacenar ventas realizadas
+        let totalCashSales = 0;
+        let totalCardSales = 0;
+        let totalSales = 0;
+
+        // Toggle Panels
+        document.getElementById('toggleInventory').addEventListener('click', () => {
+            closePanels();
+            document.getElementById('inventoryPanel').classList.remove('hidden');
+        });
+
+        document.getElementById('toggleSales').addEventListener('click', () => {
+            closePanels();
+            document.getElementById('salesPanel').classList.remove('hidden');
+        });
+
+        document.getElementById('toggleCorte').addEventListener('click', () => {
+            closePanels();
+            document.getElementById('cortePanel').classList.remove('hidden');
+        });
+
+        // Función para cerrar todos los paneles
+        function closePanels() {
+            document.getElementById('inventoryPanel').classList.add('hidden');
+            document.getElementById('salesPanel').classList.add('hidden');
+            document.getElementById('cortePanel').classList.add('hidden');
+        }
+
+        // Agregar artículo al inventario
+        document.getElementById('addInventoryItem').addEventListener('click', () => {
+            let itemName = document.getElementById('itemName').value;
+            let itemQuantity = parseInt(document.getElementById('itemQuantity').value);
+            let itemCost = parseFloat(document.getElementById('itemCost').value);
+            let itemPrice = parseFloat(document.getElementById('itemPrice').value);
+
+            if (!itemName || itemQuantity <= 0 || itemCost <= 0 || itemPrice <= 0) {
+                Swal.fire('Error', 'Por favor, complete todos los campos correctamente.', 'error');
+                return;
+            }
+
+            // Verificar si el artículo ya existe en el inventario
+            let existingItem = inventory.find(item => item.name === itemName);
+            if (existingItem) {
+                existingItem.quantity += itemQuantity;
+                existingItem.cost += itemCost * itemQuantity;
+                existingItem.price += itemPrice * itemQuantity;
+            } else {
+                inventory.push({ name: itemName, quantity: itemQuantity, cost: itemCost, price: itemPrice });
+            }
+
+            // Actualizar la tabla de inventario y los totales
+            updateInventoryTable();
+            updateInventoryTotals();
+
+            // Limpiar los campos
+            document.getElementById('itemName').value = '';
+            document.getElementById('itemQuantity').value = '';
+            document.getElementById('itemCost').value = '';
+            document.getElementById('itemPrice').value = '';
+        });
+
+        // Actualizar la tabla de inventario
+        function updateInventoryTable() {
+            let inventoryBody = document.getElementById('inventoryBody');
+            inventoryBody.innerHTML = '';
+            inventory.forEach(item => {
+                let row = document.createElement('tr');
+                row.classList.add('bg-white');
+                row.innerHTML = `
+                    <td class="p-4 text-sm text-gray-700">${item.name}</td>
+                    <td class="p-4 text-sm text-gray-700">${item.quantity}</td>
+                    <td class="p-4 text-sm text-gray-700">$${item.cost.toFixed(2)}</td>
+                    <td class="p-4 text-sm text-gray-700">$${item.price.toFixed(2)}</td>
+                `;
+                inventoryBody.appendChild(row);
+            });
+        }
+
+        // Actualizar los totales de inventario
+        function updateInventoryTotals() {
+            let totalCost = inventory.reduce((total, item) => total + item.cost, 0);
+            let totalPrice = inventory.reduce((total, item) => total + item.price, 0);
+            document.getElementById('totalCost').textContent = `$${totalCost.toFixed(2)}`;
+            document.getElementById('totalPrice').textContent = `$${totalPrice.toFixed(2)}`;
+        }
+
+        // Buscar productos en punto de venta
+        document.getElementById('searchButton').addEventListener('click', () => {
+            let searchPanel = document.getElementById('searchPanel');
+            searchPanel.classList.toggle('hidden');
+        });
+
+        // Función para actualizar la lista de productos encontrados
+        document.getElementById('searchBox').addEventListener('input', () => {
+            let searchValue = document.getElementById('searchBox').value.toLowerCase();
+            let filteredItems = inventory.filter(item => item.name.toLowerCase().includes(searchValue));
+            let searchResults = document.getElementById('searchResults');
+            searchResults.innerHTML = '';
+            filteredItems.forEach(item => {
+                let li = document.createElement('li');
+                li.classList.add('p-4', 'cursor-pointer');
+                li.textContent = item.name;
+                li.addEventListener('click', () => {
+                    addItemToSale(item);
+                });
+                searchResults.appendChild(li);
+            });
+        });
+
+        // Agregar item al listado de venta
+        function addItemToSale(item) {
+            Swal.fire({
+                title: `Seleccionar cantidad para ${item.name}`,
+                input: 'number',
+                inputPlaceholder: 'Cantidad',
+                showCancelButton: true,
+                confirmButtonText: 'Agregar',
+                inputValidator: (value) => {
+                    if (!value || value <= 0 || value > item.quantity) {
+                        return 'Cantidad no válida';
+                    }
+                    saleItems.push({ ...item, saleQuantity: parseInt(value) });
+                    item.quantity -= parseInt(value);
+                    updateSaleItems();
+                    updateInventoryTable();
+                }
+            });
+        }
+
+        // Actualizar la lista de productos vendidos
+        function updateSaleItems() {
+            let saleItemsList = document.getElementById('saleItemsList');
+            saleItemsList.innerHTML = '';
+            let total = 0;
+            saleItems.forEach(item => {
+                let li = document.createElement('li');
+                li.textContent = `${item.name} - ${item.saleQuantity} x $${item.price}`;
+                saleItemsList.appendChild(li);
+                total += item.price * item.saleQuantity;
+            });
+            document.getElementById('saleTotal').textContent = `$${total.toFixed(2)}`;
+        }
+
+        // Pagar la venta
+        document.getElementById('payButton').addEventListener('click', () => {
+            let totalSale = saleItems.reduce((total, item) => total + item.price * item.saleQuantity, 0);
+            Swal.fire({
+                title: 'Método de Pago',
+                html: `
+                    <input type="number" id="paymentAmount" placeholder="Cantidad a pagar" class="w-full p-4 border-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 mb-4" />
+                    <p>Total: $${totalSale.toFixed(2)}</p>
+                    <p>Selecciona el método de pago:</p>
+                    <select id="paymentMethod" class="w-full p-4 border-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500">
+                        <option value="efectivo">Efectivo</option>
+                        <option value="tarjeta">Tarjeta</option>
+                        <option value="transferencia">Transferencia</option>
+                    </select>
+                `,
+                confirmButtonText: 'Pagar',
+                preConfirm: () => {
+                    let paymentAmount = parseFloat(document.getElementById('paymentAmount').value);
+                    let paymentMethod = document.getElementById('paymentMethod').value;
+                    if (paymentAmount < totalSale) {
+                        Swal.fire('Error', 'La cantidad a pagar es insuficiente.', 'error');
+                        return false;
+                    }
+
+                    let change = paymentAmount - totalSale;
+                    if (paymentMethod === 'efectivo') {
+                        totalCashSales += totalSale;
+                    } else if (paymentMethod === 'tarjeta') {
+                        totalCardSales += totalSale;
+                    }
+
+                    totalSales += totalSale;
+
+                    updateCorte();
+                    Swal.fire('Venta realizada', `Pago realizado con éxito. Cambio: $${change.toFixed(2)}`, 'success');
+                    saleItems = [];
+                    updateSaleItems();
+                    return true;
+                }
+            });
+        });
+
+        // Actualizar el panel de corte
+        function updateCorte() {
+            document.getElementById('totalSales').textContent = `$${totalSales.toFixed(2)}`;
+            document.getElementById('cashSales').textContent = `$${totalCashSales.toFixed(2)}`;
+            document.getElementById('cardSales').textContent = `$${totalCardSales.toFixed(2)}`;
+        }
+
+        // Descargar corte en Excel
+        document.getElementById('downloadCorte').addEventListener('click', () => {
+            let wb = XLSX.utils.book_new();
+            let ws = XLSX.utils.json_to_sheet([
+                { "Ventas Totales": totalSales.toFixed(2) },
+                { "Ventas en Efectivo": totalCashSales.toFixed(2) },
+                { "Ventas con Tarjeta": totalCardSales.toFixed(2) }
+            ]);
+            XLSX.utils.book_append_sheet(wb, ws, "Corte de Ventas");
+            XLSX.writeFile(wb, "Corte_Ventas.xlsx");
+        });
+    </script>
+</body>
+</html>
